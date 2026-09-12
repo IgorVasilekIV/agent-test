@@ -1,0 +1,5 @@
+- [ ] `--cli` команда (по умолчанию)
+- [ ] `mcp` команда
+- [ ] конфиг `~/.config/agent/agent.jsonc` на подобии `opencode.jsonc`
+- [x] память в `/tmp/agent/mem-{hash}.json` (`~/.local/share/agent/memory/mem-{hash}.jsonl`)
+- [ ] ~~возможность подключения телеграм бота~~ ( ? )
