@@ -1,5 +1,6 @@
 from openai import AsyncOpenAI, OpenAIError
 import asyncio
+import contextlib
 
 from src import memory
 
@@ -9,19 +10,35 @@ client = AsyncOpenAI(api_key="smthng", base_url="http://10.69.42.4:8080/v1", tim
 async def main():
     mem = await memory.load_memory(session)
     messages = [memory.SYS_PROMPT] + mem
+    full_reply = ""
+    cancelled = False
 
     try:
         response = await client.chat.completions.create(
             model="YandexGPT-4",
-            messages=messages
+            messages=messages,
+            temperature=0.6,
+            stream=True
         )
-        reply = response.choices[0].message
-        print("\nAssistant:", reply.content)
-
-        await memory.append_memory(session, {"role": "assistant", "content": reply.content})
+        print("\nAssistant: ", end="", flush=True)
+        async for chunk in response:
+            if cancelled:
+                break
+            delta = chunk.choices[0].delta
+            if delta and delta.content:
+                full_reply += delta.content
+                print(delta.content, end="", flush=True)
+        print()
 
     except OpenAIError as e:
         print(f"\nError during OpenAI API call: {e}")
+    except asyncio.CancelledError:
+        cancelled = True
+    finally:
+        if full_reply:
+            await memory.append_memory(session, {"role": "assistant", "content": full_reply})
+        else:
+            await memory.append_memory(session, {"role": "system", "content": "[Response was cancelled by user]"})
         
 async def list_models():
     try:
@@ -38,22 +55,41 @@ async def list_models():
         print(f"\nError fetching models: {e}")
 
 if __name__ == "__main__":
-    while True:
-        try:
-            user_input = input("\nYou: ")
-            if user_input.lower() in ["exit", "quit"]:
+    loop = asyncio.new_event_loop()
+    task = None
+
+    try:
+        while True:
+            try:
+                user_input = input("\nYou: ")
+            except (KeyboardInterrupt, EOFError):
+                if task and not task.done():
+                    task.cancel()
+                    print("\n[Cancelled]")
+                    continue
+                print("\nExiting...")
                 break
+
+            if user_input.lower() in ["exit", "quit"]:
+                if task and not task.done():
+                    task.cancel()
+                break
+
             if user_input.strip() == "":
                 continue
             if user_input.lower() == "/models":
-                asyncio.run(list_models())
+                loop.run_until_complete(list_models())
                 continue
-            
-            asyncio.run(memory.append_memory(session, {"role": "user", "content": user_input}))
-            asyncio.run(main())
-        except KeyboardInterrupt:
-            print("\nExiting...")
-            break
-        except Exception as e:
-            print(f"\nAn error occurred: {e}")
-            break
+
+            loop.run_until_complete(memory.append_memory(session, {"role": "user", "content": user_input}))
+            task = loop.create_task(main())
+            try:
+                loop.run_until_complete(task)
+            except (KeyboardInterrupt, asyncio.CancelledError):
+                if task and not task.done():
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        loop.run_until_complete(task)
+                print("\n[Cancelled]")
+    finally:
+        loop.close()

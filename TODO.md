@@ -1,5 +1,7 @@
-- [ ] `--cli` команда (по умолчанию)
-- [ ] `mcp` команда
+- [ ] перепись ИИ функций в [`agent.py`](src/agent.py)
+- [ ] [`src/database.py`](src/database.py) для дефолт настроек (конфиг)
 - [ ] конфиг `~/.config/agent/agent.jsonc` на подобии `opencode.jsonc`
+- [ ] `mcp` и команда для его добавления
 - [x] память в `/tmp/agent/mem-{hash}.json` (`~/.local/share/agent/memory/mem-{hash}.jsonl`)
 - [ ] ~~возможность подключения телеграм бота~~ ( ? )
+- [ ] `--cli` команда (по умолчанию)
